@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <iostream>
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -22,10 +23,11 @@ __global__ void fill_one(int* d_array, size_t length) {
     d_array[index] = 1;
 }
 
-#define BLOCK_SIZE 1024
+#define BLOCK_SIZE 2 
 
-__global__ void perfix_sum(int* d_array, size_t length) {
+__global__ void perfix_sum_simple(int* d_array, size_t length) {
     size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+    printf("index %d length %d", index, length);
     if ( index >= length ) {
         return;
     }
@@ -41,7 +43,36 @@ __global__ void perfix_sum(int* d_array, size_t length) {
     d_array[index] = cache[threadIdx.x];
 }
 
-#define BLOCK_NUM 256
+__global__ void perfix_sum( int* d_array, size_t block_size, size_t length) {
+    const int index = threadIdx.x + blockIdx.x * blockDim.x;
+    const int start = index * block_size;
+
+    if ( start >= length ) {
+        return;
+    }
+    __shared__ int cache[BLOCK_SIZE];
+    int local_copy[BLOCK_SIZE];
+
+    for ( size_t i = 0; i < block_size; ++i ) {
+        local_copy[i] = d_array[ start + i ];
+    }
+
+    for ( size_t stride = 1; stride < BLOCK_SIZE; stride *= 2 ) {
+        cache[threadIdx.x] = local_copy[block_size-1];
+        __syncthreads();
+        int operend = cache[threadIdx.x-stride];
+        for ( size_t i = 0; i < block_size; ++i ) {
+            local_copy[i] += operend;
+        }
+    }
+
+    // write back
+    for ( size_t i = 0; i < block_size; ++i ) {
+        d_array[ start + i ] = local_copy[i];
+    }
+}
+
+#define BLOCK_NUM 1
 
 int main(int argc, char** argv) {
     int* d_array = NULL; 
@@ -49,7 +80,8 @@ int main(int argc, char** argv) {
 
     fill_one<<<BLOCK_NUM, BLOCK_SIZE>>>(d_array, BLOCK_SIZE * BLOCK_NUM);
 
-    perfix_sum<<<BLOCK_NUM, BLOCK_SIZE>>>(d_array, BLOCK_SIZE * BLOCK_NUM);
+    perfix_sum<<<BLOCK_NUM, BLOCK_SIZE>>>(d_array, 1, BLOCK_SIZE * BLOCK_NUM);
+    cudaDeviceSynchronize();
 
     int h_array[BLOCK_NUM*BLOCK_SIZE] = {0};
 
