@@ -23,7 +23,7 @@ __global__ void fill_one(int* d_array, size_t length) {
     d_array[index] = 1;
 }
 
-#define BLOCK_SIZE 2 
+#define BLOCK_SIZE 1024
 
 __global__ void perfix_sum_simple(int* d_array, size_t length) {
     size_t index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -46,6 +46,7 @@ __global__ void perfix_sum_simple(int* d_array, size_t length) {
 __global__ void perfix_sum( int* d_array, size_t block_size, size_t length) {
     const int index = threadIdx.x + blockIdx.x * blockDim.x;
     const int start = index * block_size;
+    // printf( "id %d index %d, start %d length %d block_size %d \n", threadIdx.x, index, start, (int)length, (int) block_size );
 
     if ( start >= length ) {
         return;
@@ -55,15 +56,20 @@ __global__ void perfix_sum( int* d_array, size_t block_size, size_t length) {
 
     for ( size_t i = 0; i < block_size; ++i ) {
         local_copy[i] = d_array[ start + i ];
+        // printf("id %d, local_copy[%d] = d_array[%d] = %d \n", threadIdx.x, (int)i, (int)(start+i), local_copy[i]);
     }
+    cache[threadIdx.x] = local_copy[block_size-1];
 
-    for ( size_t stride = 1; stride < BLOCK_SIZE; stride *= 2 ) {
-        cache[threadIdx.x] = local_copy[block_size-1];
+    for ( size_t stride = 1; stride <= threadIdx.x; stride *= 2 ) {
+        // printf("id %d, cache[%d] = local_copy[%d] = %d \n", threadIdx.x, threadIdx.x, (int)(block_size - 1), local_copy[block_size-1]);
         __syncthreads();
         int operend = cache[threadIdx.x-stride];
+        // printf("id %d, stride %d operend %d \n", threadIdx.x, stride, operend);
         for ( size_t i = 0; i < block_size; ++i ) {
             local_copy[i] += operend;
         }
+        __syncthreads();
+        cache[threadIdx.x] = local_copy[block_size-1];
     }
 
     // write back
@@ -72,7 +78,7 @@ __global__ void perfix_sum( int* d_array, size_t block_size, size_t length) {
     }
 }
 
-#define BLOCK_NUM 1
+#define BLOCK_NUM 256
 
 int main(int argc, char** argv) {
     int* d_array = NULL; 
