@@ -1,0 +1,1 @@
+nvcc perfix-sum.cu -arch=sm_20 -Xcompiler -I/usr/local/cuda/include/ -Xcompiler -L/usr/local/cuda/lib64/ -Xlinker -lcudart -deviceemu
