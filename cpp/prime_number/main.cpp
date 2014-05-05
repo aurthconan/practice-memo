@@ -5,12 +5,13 @@
 
 using namespace std;
 
-#define MAX 0xffffffff
+#define MAX 0xffffff
 
 int main() {
     vector<int> prime_known;
+    prime_known.push_back(2);
 
-    for ( int number = 2; number <= MAX; ++number ) {
+    for ( int number = 3; number <= MAX; number+=2 ) {
         int end = ceil( sqrt( number ) );
         bool isPrime = true;
         for ( int divisor_index = 0;
